@@ -9,7 +9,8 @@
 - [Validación de las solicitudes](#validacion-de-las-solicitudes)
 - [Manejo de excepciones](#manejo-de-excepciones)
 
-## ¿Qué es Spring Web MVC?  {#que-es-spring-web-mvc}
+<a id="que-es-spring-web-mvc"></a>
+## ¿Qué es Spring Web MVC? 
 
 Spring Web MVC es un framework dentro del ecosistema de Spring Framework para el desarrollo de aplicaciones web. Esta construcción se realiza siguiendo el patrón de diseño **Modelo-Vista-Controlador (MVC)**, lo cual permite una segregación de responsabilidades al dividir nuestra aplicación en tres capas interconectadas:
 
@@ -227,14 +228,15 @@ class AppController {
 	}
 }
 ```
- 
-## Validación de las solicitudes {#validacion-de-las-solicitudes}
+
+<a id="validacion-de-las-solicitudes"></a>
+## Validación de las solicitudes 
 
 > Anotación @RequestBody
 
 Esta anotación permite leer y convertir toda la información del cuerpo de la solicitud entrante hacía un objeto de Java y pasarlo como parámetro al método que esta manejando dicha solicitud.
 
-De este modo, ya se puede leer y acceder a la información que el usuario nos proporcionó por medio de alguna interación, pero, ¿Cómo se puede validar que la información esta alineada a los requerimientos de la aplicación?
+De este modo, ya se puede leer y acceder a la información que el usuario ha proporcionado por medio de alguna interación, pero, ¿Cómo se puede validar que la información esta alineada a los requerimientos de la aplicación?
 
 
 > La validación de beans
@@ -305,3 +307,49 @@ public class UsuarioController {
 ```
 
 ## Manejo de excepciones
+
+Dentro del framework de Spring, se nos proporciona las anotaciones @ExceptionHandler, @ControllerAdvice y @RestControllerAdvice para el manejo de excepciones de una manera centralizada.
+
+> Anotación @ExceptionHandler
+
+Esta anotación permite manejar excepciones **específicas** que ocurren durante la ejecución de los métodos definidos dentro de un controlador.
+
+El funcionamiento interno inicia cuando Spring registra los métodos anotados con **@ExceptionHandler** durante el inicio de la aplicación. De modo que, en el instante que se lance una excepción, entonces, el DispatcherServlet busca un **Exception Handler** qué este registrado y sea apropiado a la excepción.
+
+```
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
+        Map<String, String> error = Map.of("error", ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+```
+
+
+> Anotación @ControllerAdvice
+
+La anotación @ControllerAdvice en Spring permite centralizar el manejo de excepciones que puedan surgir durante la ejecución de los métodos en los controladores. Al definir métodos anotados con @ExceptionHandler dentro de una clase marcada con @ControllerAdvice, es posible capturar y gestionar errores de forma global, sin necesidad de duplicar lógica en cada controlador. Además, dado que @ControllerAdvice también es un @Component, Spring detecta automáticamente esta clase y aplica su lógica de manejo de excepciones a todos los controladores del proyecto.
+
+> Y pueden suceder dos casos:
+> - Si la excepción ocurre antes de que el método del controlador se ejecute completamente (por ejemplo, en la validación de parámetros, autorización, etc.), Spring redirige automáticamente el flujo hacia el método manejador de excepciones correspondiente en el @ControllerAdvice.
+>
+> - Si el método se empieza a ejecutar y lanza una excepción, entonces en ese momento se interrumpe, se aborta la ejecución restante del método, y se llama al método manejador de excepciones correspondiente en el @ControllerAdvice.
+
+
+```
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
+        Map<String, String> error = Map.of("error", ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+}
+```
+
+
+> [!NOTE]
+> La anotación **@RestControllerAdvice** es una variante de @ControllerAdvice que combina **@ControllerAdvice** y **@ResponseBody**,
+> Teniendo cómo característica de manejar excepciones de manera global y la serialización de respuestas de la petición de manera automática.
+
