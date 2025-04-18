@@ -4,6 +4,10 @@
 
 - [¿Qué es Spring Web MVC?](#que-es-spring-web-mvc)
   - [El patrón MVC](#el-patron-mvc)
+  - [La arquitectura de Spring Web MVC](#la-arquitectura-spring-web-mvc)
+  - [Dispatcher Servlet](#dispatcher-servlet)
+    - [HandlerMapping](#handler-mapping)
+    - [HandlerAdapter](#handler-adapter)
 - [HTTP Message Conversion](#http-message-conversion)
   - [Implementaciones de HttpMessageConverter](#implementaciones-de-httpmessageconverter)
   - [Anotaciones para Message Conversion](#anotaciones-para-message-conversion)
@@ -49,9 +53,84 @@ Spring Web MVC es un framework dentro del ecosistema de Spring Framework para el
 <a id="el-patron-mvc"></a>
 ### El patrón MVC
 
-- **Model**: Representa las entidades de la aplicación y la lógica de negocio. Esta capa es la responsable de manejar el estado de la aplicación.
+- **Model**: Representa las datos de la aplicación y la lógica de negocio. Esta capa es la responsable de manejar el estado de la aplicación.
 - **View**: Es la capa responsable de renderizar la UI al usuario con los datos obtenidos recuperados por el controlador.
 - **Controller**: Es la capa encargada de manejar y validar las interacciones del usuario con la aplicación. El proceso que realiza es la interacción con el modelo para recuperar o actualizar datos y selecciona la vista adecuada para su presentación en la UI.
+
+<a id="la-arquitectura-spring-web-mvc"></a>
+### La arquitectura de Spring Web MVC
+
+La arquitectura de Spring Web MVC está construida alrededor del patrón de diseño **Front Controller**. Esté patrón tiene cómo objetivo el **centralizar el manejo de solicitudes de una aplicación web** utilizando un único punto de entrada.  
+
+Dentro de una aplicación de Spring Web, el punto de entrada es realizado por el **Dispatcher Servlet** y es el encargado de gestionar el flujo de la aplicación.
+
+A continuación, se muestra una imágen que muestra el flujo de una aplicación de Spring Web MVC y cómo interactuán los componentes que constituyen su arquitectura:
+
+> 1. Desde el navegador un usario realiza una acción la cuál manda una petición dentro de la aplicación.
+> 2. El Front Controller **(Dispatcher Servlet)** recibe la petición realizada y busca un controlador que pueda resolver dicha petición
+> 3. El **Controller** recibe la petición y ejecuta la lógica de negocio que la resuelva.
+> 4. Una vez resuelta la petición, entonces, el controlador devuelve la respuesta que a su vez será renderizada por la vista
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/c158bdcc-02ab-4a1c-ad9f-f9f97c95d1cf" alt="Spring Web MVC Architecture">
+</p>
+
+
+<a id="dispatcher-servlet"></a>
+### Dispatcher Servlet
+
+Ya sabemos que el **Dispatcher Servlet** es el punto de entrada de la solicitudes de la aplicación, pero, hay que tener claro que esté componente **no procesa directamente las solicitudes**, sino que delega este procesamiento a componentes especializados. 
+
+A continuación, se muestra una imágen del proceso del **Dispatcher Servlet** con una aplicación de tipo APIs RESTful creada con Spring Web MVC.
+
+> - Una cliente consume nuestra API
+> - El Front Controller **(Dispatcher Servlet)** recibe la petición realizada por el cliente.
+> - Le delega el trabajo de procesamiento al **HandlerMapping** que a su vez busca un controlador que sea el adecuado para que maneje la solicitud.
+> - Con el componente **HandlerAdapter** convierte los parámetros entrantes de la solicitud hacía **objetos de java**.
+> - Se invoca el controlador que fue seleccionado en el paso 3 para que resuelva la solicitud.
+> - Se aplica la lógica de negocio para resolver la solicitud y se retorna el resultado hacía el controlador.
+> - El controlador recibe la respuesta, llama al **HandlerAdapter** para la adaptación de la respuesta HTTP y la cual es enviada al **Dispatcher Servlet**.
+> - El **Dispatcher Servlet** recibe la respuesta y es la que le manda al cliente que realizó la petición.
+
+![image](https://github.com/user-attachments/assets/41e49a0c-4135-4cc5-93cf-79541b75c97a)
+
+<a id="handler-mapping"></a>
+#### HandlerMapping
+
+Es una interfaz que permite determina qué controlador (handler) debe procesar una solicitud HTTP.
+
+¿De qué manera lo hace? 
+1. DispatcherServlet recibe una solicitud HTTP
+2. Consulta a todos los HandlerMappings registrados en orden de prioridad
+3. El primer HandlerMapping que devuelve un handler no nulo es el que se le delega la resposabilidad para resolver la petición.
+
+| Implementación                           	|  Descripción                                          	|
+|------------------------------------------	|------------------------------------------------------		|
+| `RequestMappingHandlerMapping`         	| Busca métodos en controladores anotados con @RequestMapping (o sus variantes como @GetMapping, @PostMapping, etc.)	|                         
+| `BeanNameUrlHandlerMapping`             	| Mapea URLs a beans de controlador basándose en su nombre						          	|
+| `RouterFunctionMapping` 			| Para la programación funcional web en Spring 5+, mapea RouterFunction a handlers 					|
+
+
+<a id="handler-adapter"></a>
+#### HandlerAdapter
+
+Es una interfaz la cuál actúa como un adaptador entre el **DispatcherServlet** y el handler **(controlador)** a cargo de la solicitud.
+
+
+| Implementación                   | Descripción                                                                                              |
+|----------------------------------|----------------------------------------------------------------------------------------------------------|
+| `RequestMappingHandlerAdapter`   | Invoca métodos de controlador anotados con `@RequestMapping` 					      |
+| `SimpleControllerHandlerAdapter` | Para controladores que implementan la interfaz `Controller`.                                             |
+| `HandlerFunctionAdapter`         | Para el modelo de programación funcional web.                                                            |
+
+
+> [!NOTE]
+> Si el Adapter es de tipo **RequestMappingHandlerAdapter**, llevaría a cabó las tareas de:
+> - Preparar la invocación del **controlador**
+> - Resolver los argumentos del método (por ejemplo, validaciones, conversión de tipos, etc.)
+> - Invocar el método del **controlador**
+> - Procesar el valor devuelto
+> - Conviertir el resultado al formato de respuesta apropiado (por ejemplo, JSON o XML)
 
 <a id="http-message-conversion"></a>
 ## HTTP Message Conversion
@@ -529,7 +608,7 @@ public class CredentialController {
 ```
 
 <a id="methodargumentnotvalidexception-constraintviolationexception"></a>
-##Las clases MethodArgumentNotValidException y ConstrainViolationException
+## Las clases MethodArgumentNotValidException y ConstrainViolationException
 
 Hasta este punto, ya sabemos cómo extraer y validar los datos suministrados por el usuario hacía la aplicación, pero, ¿Qué resultado se generá en caso de no cumplirse alguna validación?
 
@@ -642,9 +721,6 @@ public class GlobalExceptionHandler {
 <a id="restcontrolleradvice"></a>
 ### @RestControllerAdvice
 
-> [!NOTE]
-> La anotación **@RestControllerAdvice** es una combinación de **@ControllerAdvice** y **@ResponseBody**
-> 
-> Por lo tanto, se tiene los beneficios de manejar excepciones de manera global y la serialización de respuestas de la petición de manera automática.
+La anotación **@RestControllerAdvice** es una combinación de **@ControllerAdvice** y **@ResponseBody**. Por lo tanto, se tiene los beneficios de manejar excepciones de manera global y la serialización de respuestas de la petición de manera automática.
 
 
