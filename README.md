@@ -32,7 +32,11 @@
   - [@Validated](#validated)
     - [Validaciones individuales](#validaciones-individuales)
     - [Validación por grupo](#validacion-por-grupo)
+  - [Las clases MethodArgumentNotValidException y ConstrainViolationException](#methodargumentnotvalidexception-constraintviolationexception)
+    - [Clase MethodArgumentNotValidException](#methodargumentnotvalidexception)
+    - [Clase ConstrainViolationException](#constraintviolationexception)
 - [Manejo de excepciones](#manejo-de-excepciones)
+  - [La interfaz HandlerExceptionResolver](#handler-exception-resolver)
   - [@ExceptionHandler](#exceptionhandler)
   - [@ControllerAdvice](#controlleradvice)
   - [@RestControllerAdvice](#restcontrolleradvice)
@@ -65,7 +69,7 @@ Algunas de las implementaciones más importantes de la interfaz **HttpMessageCon
 
 | Implementación                           | Media Type        | Descripción                                          |
 |------------------------------------------|-------------------|------------------------------------------------------|
-| `MappingJackson2HttpMessageConverter`    | `application/json`| Usa Jackson para convertir entre JSON y objetos Java |                         |
+| `MappingJackson2HttpMessageConverter`    | `application/json`| Usa Jackson para convertir entre JSON y objetos Java |                         
 | `GsonHttpMessageConverter`               | `application/json`| Usa Gson en lugar de Jackson                         |
 | `MappingJackson2XmlHttpMessageConverter` | `application/xml` | Usa Jackson XMl la conversión entre XML y objetos Java |
 | `StringHttpMessageConverter`             | `text/plain`      | Para textos planos                                   |
@@ -444,7 +448,7 @@ public class UsuarioController {
 <a id="validated"></a>
 ### @Validated
 
-Está anotación es propia de Spring framework y sirve para las validaciones individuales o por grupo. Dichas validaciones son realizadas por un validador registrado en la aplicación, comúnmente **Hibernate Validator** y por medio de las anotaciones declarativas de Jakarta EE.
+Está anotación es propia de Spring framework la cual hace uso del validador **Hibernate Validator**. Esta anotación es una **extensión** a la validación por beans (Java Bean Validation) añandiendo características cómo la validación individual y la validación por grupos.
 
 <a id="validaciones-individuales"></a>
 #### Validaciones individuales
@@ -489,25 +493,118 @@ public class UsuarioController {
 <a id="validacion-por-grupo"></a>
 #### Validación por grupo
 
-[Esta sección aún requiere contenido]
+Es una característica la cuál permite realizar **ciertas validaciones** a un mismo objeto bajo diferentes escenarios. Esto se realiza creando interfaces marcadoras (marker interfaces) que se utilizan para clasificar y agrupar restricciones de validación.
+
+Como se puede observar en el siguiente código, se han creado dos interfaces: **OnRegister y OnSignIn**, las cuales se utilizan dentro de la clase **CredentialRequest**, que simula el cuerpo de la solicitud entrante. Dentro de la clase se implementa la validación mediante **Bean Validation**, con la particularidad de que se clasifica por grupos.
+
+De esta forma, en el mapeo de la solicitud **POST /sign-in** definida dentro del controlador y mediante la anotación **@Validated(OnSignIn.class)**, se indica que deben aplicarse únicamente las validaciones correspondientes al grupo **OnSignIn** sobre el objeto **CredentialRequest**. Esto implica que solo se validará que los campos **email y password** no sean nulos, vacíos o contengan únicamente espacios en blanco.
+
+```
+public interface OnRegister{ }
+public interface OnSignIn{ }
+
+public class CredentialRequest{
+	@NotBlank( groups = {OnRegister.class, OnSignIn.class} )
+	@Email( groups = OnRegister.class )
+	public String email;
+
+	@NotBlank( groups = {OnRegister.class, OnSignIn.class} )
+	@Size(min, 8, max=30, groups = OnRegister.class)
+	public Strin password;
+}
+
+@RestController
+public class CredentialController {
+    
+    @PostMapping("/register")
+    public ResponseEntity<...> register(@Validated(OnRegister.class) @RequestBody CredentialRequest usuario) {
+        return ResponseEntity.ok(...);
+    }
+    
+    @PostMapping("/sign-in")
+    public ResponseEntity<...> signIn(@Validated(OnSignIn.class) @RequestBody CredentialRequest usuario) {
+        return ResponseEntity.ok(...);
+    }
+}
+```
+
+<a id="methodargumentnotvalidexception-constraintviolationexception"></a>
+##Las clases MethodArgumentNotValidException y ConstrainViolationException
+
+Hasta este punto, ya sabemos cómo extraer y validar los datos suministrados por el usuario hacía la aplicación, pero, ¿Qué resultado se generá en caso de no cumplirse alguna validación?
+
+> En caso de no cumplirse alguna validación ya sea dentro del @RequestBody, @RequestParam o @PathVariable se producen excepciones de tipo **MethodArgumentNotValidException** y **ConstrainViolationException**
+
+<a id="methodargumentnotvalidexception"></a>
+#### Clase MethodArgumentNotValidException
+
+Está es una excepción que forma parte del módulo de Spring Web MVC y es lanzada cuando falla la validación sobre un objeto que fue anotado con **@Valid** *(RequestBody)*. Es decir, es lanzada cuándo el usuario envía datos en el cuerpo de la petición los cuales no cumplen con los requisitos definidos en la aplicación.
+
+> Método getBindingResult()
+>
+> Dentro de la clase MethodArgumentNotValidException existe el método **getBindingResult** el cuál devuelve un objeto de tipo **BindingResult** que a su vez contiene el método **getAllErrors()** que devuelve todos los errores que se generaron durante el proceso de binding.
+> 
+> ¿Y qué es el binding?
+> El binding es el proceso donde se mapea los datos enviados en el cuerpo de una petición hacía un objeto de Java
+
+
+<a id="constraintviolationexception"></a>
+#### Clase ConstrainViolationException
+
+Está es una excepción que forma parte del Bean Validation (JSR-380) de Jakarta EE. 
+
+Dentro de una aplicación Spring, esta excepción se lanza cuando ocurre una **violación de restricción** (por ejemplo, fallas en el Bean Validation) sobre algún parámetro de un método definido en un controlador. Dicho parámetro debe estar anotado con **@Validated**, ya sea a nivel de clase o de método (por ejemplo, en parámetros como @RequestParam, @PathVariable o @RequestBody).
+
+
+> Método getConstraintViolations()
+>
+> Dentro de la clase ConstrainViolationException existe el método **getConstraintViolations()** el cual devuelve un **Set<ConstraintViolation<?>>**, es decir, devuelve un conjuto de restricciones violadas. Donde cada elemento del conjunto posee distintos atributos, donde uno de estos atributos es el mensaje de error (por ejemplo, el mensaje de error personalizado o el mensaje de error por defecto).
 
 <a id="manejo-de-excepciones"></a>
 ## Manejo de excepciones
 
-Dentro del framework de Spring, se nos proporciona las anotaciones @ExceptionHandler, @ControllerAdvice y @RestControllerAdvice para el manejo de excepciones de una manera centralizada.
+En este punto, ya sabemos que, en caso de no cumplirse dichas validaciones, se producen excepciones. Entonces, ¿cómo podemos manejar esas excepciones dentro de una aplicación Spring?
+
+<a id="handler-exception-resolver"></a>
+### La interfaz HandlerExceptionResolver
+
+Dentro del framework de Spring se tiene la interfaz HandlerExceptionResolver, la cual funciona como un punto intermedio entre las excepciones lanzadas por la aplicación y la respuesta HTTP que será devuelta al cliente.
+
+El flujo del control de excepciones dentro de una aplicación de Spring inicia en el momento de su lanzamiento, en ese instante el **DispatcherServlet** interrumpe el flujo de la aplicación para delegarle la responsabilidad del manejo de la excepción a las implementaciones de la interfaz **HandlerExceptionResolver** hasta que alguna de ellas resuelva la excepción.
+
+| Implementación                           	|  Descripción                                          	|
+|------------------------------------------	|------------------------------------------------------		|
+| `ResponseStatusExceptionResolver`         	| Maneja excepciones anotadas con @ResponseStatus o que implementan ResponseStatusException.		|                         
+| `DefaultHandlerExceptionResolver`             | Maneja excepciones estándar de Spring MVC y las traduce a códigos de estado HTTP apropiados.          |
+| `ExceptionHandlerExceptionResolver` 		| Utiliza los métodos registrados con la anotación @ExceptionHandler para el manejo de la excepción. 	|
+
+> [!NOTE]
+> La ejecución de cada una de las implementaciones de la interfaz **HandlerExceptionResolver** se hace de forma secuencial y por ende tiene un orden de ejecución:
+>  1.  **ExceptionHandlerExceptionResolver**
+>  2.  **ResponseStatusExceptionResolver**
+>  3.  **DefaultHandlerExceptionResolver**
 
 <a id="exceptionhandler"></a>
 ### @ExceptionHandler
 
 Esta anotación permite manejar excepciones **específicas** que ocurren durante la ejecución de los métodos definidos dentro de un controlador.
 
-El funcionamiento interno inicia cuando Spring registra los métodos anotados con **@ExceptionHandler** durante el inicio de la aplicación. De modo que, en el instante que se lance una excepción, entonces, el DispatcherServlet busca un **Exception Handler** qué este registrado y sea apropiado a la excepción.
+El funcionamiento interno inicia cuando Spring registra los métodos anotados con **@ExceptionHandler** durante el inicio de la aplicación. De modo que, en el instante que se lance una excepción, entonces, se delega el manejo de la excepción al **ExceptionHandlerExceptionResolver** que a su vez busca un **Exception Handler** qué este registrado y sea apropiado para el manejo de la excepción lanzada.
 
 ```
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
-        Map<String, String> error = Map.of("error", ex.getMessage());
-        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    # Manejo de excepciones lanzadas por parametros anotados con @Valid.
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    private ResponseEntity<Map<String, String>> handleValidationErrors(
+            MethodArgumentNotValidException ex
+    ) {
+
+        String error = ex.getBindingResult()
+                .getFieldErrors()
+                .stream().map(FieldError::getDefaultMessage)
+                .findFirst().orElse(ex.getMessage());
+
+        return new ResponseEntity<>(Map.of("error", error), HttpStatus.BAD_REQUEST);
     }
 ```
 
@@ -526,12 +623,19 @@ Al definir métodos anotados con @ExceptionHandler dentro de una clase marcada c
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
-        Map<String, String> error = Map.of("error", ex.getMessage());
-        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
-    }
-
+   # Manejo de excepciones lanzadas por parametros anotados con @Validated.
+   @ExceptionHandler(ConstraintViolationException.class)
+   public ResponseEntity<Object> handleConstraintViolation(ConstraintViolationException ex) {
+     Map<String, String> errors = new HashMap<>();
+    
+     for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+        String propertyPath = violation.getPropertyPath().toString();
+        String message = violation.getMessage();
+        errors.put(propertyPath, message);
+     }
+    
+     return new ResponseEntity<>(Map.of("errors", errors), HttpStatus.BAD_REQUEST);
+   }
 }
 ```
 
@@ -542,3 +646,5 @@ public class GlobalExceptionHandler {
 > La anotación **@RestControllerAdvice** es una combinación de **@ControllerAdvice** y **@ResponseBody**
 > 
 > Por lo tanto, se tiene los beneficios de manejar excepciones de manera global y la serialización de respuestas de la petición de manera automática.
+
+
